@@ -1,9 +1,6 @@
-#####
-#
-# This file maps all the topics that are to be used on the uXRCE-DDS client.
-#
-#####
 publications:
+  - topic: /fmu/out/esc_status
+    type: px4_msgs::msg::EscStatus
 
   - topic: /fmu/out/register_ext_component_reply
     type: px4_msgs::msg::RegisterExtComponentReply
@@ -41,9 +38,6 @@ publications:
   - topic: /fmu/out/timesync_status
     type: px4_msgs::msg::TimesyncStatus
 
-  # - topic: /fmu/out/vehicle_angular_velocity
-  #   type: px4_msgs::msg::VehicleAngularVelocity
-
   - topic: /fmu/out/vehicle_land_detected
     type: px4_msgs::msg::VehicleLandDetected
 
@@ -73,9 +67,6 @@ publications:
 
   - topic: /fmu/out/airspeed_validated
     type: px4_msgs::msg::AirspeedValidated
-
-  - topic: /fmu/out/vtol_vehicle_status
-    type: px4_msgs::msg::VtolVehicleStatus
 
   - topic: /fmu/out/home_position
     type: px4_msgs::msg::HomePosition
@@ -145,23 +136,8 @@ subscriptions:
   - topic: /fmu/in/vehicle_command
     type: px4_msgs::msg::VehicleCommand
 
-  - topic: /fmu/in/vehicle_command_mode_executor
-    type: px4_msgs::msg::VehicleCommand
-
-  - topic: /fmu/in/vehicle_thrust_setpoint
-    type: px4_msgs::msg::VehicleThrustSetpoint
-
-  - topic: /fmu/in/vehicle_torque_setpoint
-    type: px4_msgs::msg::VehicleTorqueSetpoint
-
   - topic: /fmu/in/actuator_motors
     type: px4_msgs::msg::ActuatorMotors
-
-  - topic: /fmu/in/actuator_servos
-    type: px4_msgs::msg::ActuatorServos
-
-  - topic: /fmu/in/aux_global_position
-    type: px4_msgs::msg::VehicleGlobalPosition
 
 # Create uORB::PublicationMulti
 subscriptions_multi:
