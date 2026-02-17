@@ -46,7 +46,7 @@ RoverDifferential::RoverDifferential() :
 
 bool RoverDifferential::init()
 {
-	ScheduleOnInterval(10_ms); // 100 Hz
+	ScheduleOnInterval(4_ms); // 250 Hz
 	return true;
 }
 
@@ -134,6 +134,9 @@ void RoverDifferential::generateActuatorSetpoint()
 	computeInverseKinematics(throttle_body_x,
 				 _rover_steering_setpoint.normalized_speed_diff).copyTo(actuator_motors.control);
 	actuator_motors.timestamp = _timestamp;
+	// std::cout << "publishing actuator motors.." << std::endl;
+	// std::cout << "control[0]: " << actuator_motors.control[0] << std::endl;
+	// std::cout << "control[1]: " << actuator_motors.control[1] << std::endl;
 	_actuator_motors_pub.publish(actuator_motors);
 }
 
