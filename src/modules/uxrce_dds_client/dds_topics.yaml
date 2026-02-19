@@ -2,6 +2,9 @@ publications:
   - topic: /fmu/out/esc_status
     type: px4_msgs::msg::EscStatus
 
+  - topic: /fmu/out/distance_sensor
+    type: px4_msgs::msg::DistanceSensor
+
   - topic: /fmu/out/register_ext_component_reply
     type: px4_msgs::msg::RegisterExtComponentReply
 
