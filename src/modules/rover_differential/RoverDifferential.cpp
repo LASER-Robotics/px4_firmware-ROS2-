@@ -88,9 +88,7 @@ void RoverDifferential::Run()
 
 	if (_vehicle_control_mode.flag_armed) {
 		generateActuatorSetpoint();
-
 	}
-
 }
 
 void RoverDifferential::generateSteeringAndThrottleSetpoint()
