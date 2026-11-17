@@ -2224,7 +2224,8 @@ void Commander::updateTunes()
 
 	} else if (!_vehicle_status.usb_connected &&
 		   (_vehicle_status.hil_state != vehicle_status_s::HIL_STATE_ON) &&
-		   (_battery_warning == battery_status_s::WARNING_CRITICAL)) {
+		   (_battery_warning == battery_status_s::WARNING_CRITICAL
+		    || _battery_warning == battery_status_s::WARNING_EMERGENCY)) {
 
 		/* play tune on battery critical */
 		set_tune(tune_control_s::TUNE_ID_BATTERY_WARNING_FAST);

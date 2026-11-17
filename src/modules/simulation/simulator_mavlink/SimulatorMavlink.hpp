@@ -277,6 +277,12 @@ private:
 	vehicle_status_s _vehicle_status{};
 	battery_status_s _battery_status{};
 
+	// px4_mujoco: RPM de cada motor que manda la planta (ESC_STATUS), como el DShot bidireccional del FC real
+	int32_t _sim_esc_rpm[4] {};
+	float _sim_esc_current[4] {};
+	float _sim_esc_voltage{0.f};
+	hrt_abstime _sim_esc_time{0};
+
 	bool _accel_blocked[ACCEL_COUNT_MAX] {};
 	bool _accel_stuck[ACCEL_COUNT_MAX] {};
 	sensor_accel_fifo_s _last_accel_fifo{};

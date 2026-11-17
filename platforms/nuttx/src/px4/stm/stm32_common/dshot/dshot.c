@@ -90,7 +90,6 @@ static void init_timer_config(uint32_t channel_mask);
 static void init_timers_dma_up(void);
 static int32_t init_timer_channels(uint8_t timer_index);
 
-static void select_next_capture_channel(uint8_t timer_index);
 static uint8_t output_channel_from_timer_channel(uint8_t timer_index, uint8_t timer_channel);
 
 static void dma_burst_finished_callback(DMA_HANDLE handle, uint8_t status, void *arg);
@@ -108,6 +107,7 @@ typedef struct timer_config_t {
 	bool initialized_channels[4];   // Timer channels initialized (successfully started)
 	bool bidirectional;             // Timer in bidir (inverted) mode
 	int capture_channel_index;		// Timer channel currently being catured in bidirectional mode
+	DMA_HANDLE capture_dma_handle[4];	// px4_mujoco: un stream DMA de captura por canal (los 4 a la vez)
 	uint8_t timer_index;            // Timer index. Necessary to have memory for passing pointer to hrt callback
 } timer_config_t;
 
@@ -139,7 +139,30 @@ static uint32_t read_fail_nibble[MAX_NUM_CHANNELS_PER_TIMER] = {};
 static uint32_t read_fail_crc[MAX_NUM_CHANNELS_PER_TIMER] = {};
 static uint32_t read_fail_zero[MAX_NUM_CHANNELS_PER_TIMER] = {};
 
+// px4_mujoco: rescate de ESC AM32 trabados en su bootloader. Si el ESC se reinicia mientras le llega DShot
+// invertido (linea casi siempre en alto), su bootloader puede quedarse esperando configuracion y el motor no
+// responde. Con la linea en bajo > 20 ms el bootloader salta a la aplicacion, que arranca viendo la senal y
+// detecta el modo bidireccional. Solo desarmado (ver up_bdshot_rescue_check).
+static hrt_abstime _last_read_ok_time[MAX_NUM_CHANNELS_PER_TIMER] = {};
+static hrt_abstime _rescue_check_time = 0;
+static hrt_abstime _rescue_until = 0;
+static bool _rescue_request = false;
+static uint32_t _rescue_count = 0;
+static uint32_t _rescue_long_count = 0;
+static uint8_t _rescue_streak = 0;		// rescates seguidos sin que vuelvan todos los canales
+static hrt_abstime _rescue_hold_us = 0;
+#define BDSHOT_RESCUE_HOLD_US		50000	// linea en bajo (el bootloader salta tras 20 ms)
+#define BDSHOT_RESCUE_OFFLINE_US	1000000	// canal sin respuestas validas por mas de esto -> rescate
+#define BDSHOT_RESCUE_INTERVAL_US	1500000	// espera entre intentos
+#define BDSHOT_ONLINE_TIMEOUT_US	200000
+// Si el rescate corto falla varias veces, el ESC no esta en el bootloader sino en su aplicacion, en un estado en
+// que responde pero la respuesta no decodifica (visto 28/10 al reiniciar el FC con la bateria puesta). Sin senal
+// > 2 s (desarmado) el AM32 se reinicia solo: es como cortar la bateria.
+#define BDSHOT_RESCUE_LONG_HOLD_US	2500000
+#define BDSHOT_RESCUE_LONG_AFTER	3
+
 static perf_counter_t hrt_callback_perf = NULL;
+static perf_counter_t capture_setup_perf = NULL;	// px4_mujoco: fin de la trama -> los 4 canales capturando
 
 static void init_timer_config(uint32_t channel_mask)
 {
@@ -284,6 +307,7 @@ int up_dshot_init(uint32_t channel_mask, unsigned dshot_pwm_freq, bool enable_bi
 	if (_bidirectional) {
 		PX4_INFO("Bidirectional DShot enabled, only one timer will be used");
 		hrt_callback_perf = perf_alloc(PC_ELAPSED, "dshot: callback perf");
+		capture_setup_perf = perf_alloc(PC_ELAPSED, "dshot: capture setup");
 	}
 
 	// NOTE: if bidirectional is enabled only 1 timer can be used. This is because Burst mode uses 1 DMA channel per timer
@@ -333,6 +357,45 @@ int up_dshot_init(uint32_t channel_mask, unsigned dshot_pwm_freq, bool enable_bi
 // Kicks off a DMA transmit for each configured timer and the associated channels
 void up_dshot_trigger()
 {
+	if (_bidirectional && (_rescue_request || _rescue_until != 0)) {
+		const uint8_t timer_index = _bidi_timer_index;
+
+		if (_rescue_request) {
+			_rescue_request = false;
+
+			// Lineas en bajo (GPIO push-pull) y sin tramas durante BDSHOT_RESCUE_HOLD_US
+			for (uint8_t output_channel = 0; output_channel < MAX_TIMER_IO_CHANNELS; output_channel++) {
+				uint8_t timer_channel_index = timer_io_channels[output_channel].timer_channel - 1;
+
+				if (timer_index == timer_io_channels[output_channel].timer_index
+				    && timer_configs[timer_index].initialized_channels[timer_channel_index]) {
+					io_timer_unallocate_channel(output_channel);
+					px4_arch_configgpio(io_timer_channel_get_gpio_output(output_channel));
+				}
+			}
+
+			_rescue_until = hrt_absolute_time() + _rescue_hold_us;
+			return;
+		}
+
+		if (hrt_absolute_time() < _rescue_until) {
+			return;
+		}
+
+		// Devolver los canales a DShot invertido (io_timer_set_enable de abajo restaura la funcion alternativa)
+		for (uint8_t output_channel = 0; output_channel < MAX_TIMER_IO_CHANNELS; output_channel++) {
+			uint8_t timer_channel_index = timer_io_channels[output_channel].timer_channel - 1;
+
+			if (timer_index == timer_io_channels[output_channel].timer_index
+			    && timer_configs[timer_index].initialized_channels[timer_channel_index]) {
+				io_timer_channel_init(output_channel, IOTimerChanMode_DshotInverted, NULL, NULL);
+			}
+		}
+
+		_rescue_until = 0;
+		_rescue_count++;
+	}
+
 	// Enable DShot inverted on all channels
 	io_timer_set_enable(true, _bidirectional ? IOTimerChanMode_DshotInverted : IOTimerChanMode_Dshot,
 			    IO_TIMER_ALL_MODES_CHANNELS);
@@ -392,26 +455,6 @@ void up_dshot_trigger()
 	}
 }
 
-static void select_next_capture_channel(uint8_t timer_index)
-{
-	bool found = false;
-	int next_index = timer_configs[timer_index].capture_channel_index;
-
-	while (!found) {
-		next_index++;
-
-		if (next_index > 3) {
-			next_index = 0;
-		}
-
-		if (timer_configs[timer_index].initialized_channels[next_index]) {
-			found = true;
-		}
-	}
-
-	timer_configs[timer_index].capture_channel_index = next_index;
-}
-
 static uint8_t output_channel_from_timer_channel(uint8_t timer_index, uint8_t timer_channel_index)
 {
 	for (uint8_t output_channel = 0; output_channel < MAX_TIMER_IO_CHANNELS; output_channel++) {
@@ -446,52 +489,62 @@ void dma_burst_finished_callback(DMA_HANDLE handle, uint8_t status, void *arg)
 	// De-allocate timer
 	io_timer_unallocate_timer(timer_index);
 
+	perf_begin(capture_setup_perf);
+
 	// Flush cache so DMA sees the data
 	memset(dshot_capture_buffer, 0, sizeof(dshot_capture_buffer));
 	up_clean_dcache((uintptr_t) dshot_capture_buffer,
 			(uintptr_t) dshot_capture_buffer + DSHOT_CAPTURE_BUFFER_SIZE(MAX_NUM_CHANNELS_PER_TIMER));
 
-	// Unallocate timer channel for currently selected capture_channel
-	uint8_t capture_channel = timer_configs[timer_index].capture_channel_index;
-	uint8_t output_channel = output_channel_from_timer_channel(timer_index, capture_channel);
+	// px4_mujoco: captura de los 4 canales en CADA trama (upstream captura uno por trama en ronda: RPM de cada
+	// motor a 1/4 de la tasa de DShot). El H7 tiene 16 streams DMA y esta placa usa 4 (SPI2/SPI3): sobran.
+	for (uint8_t capture_channel = 0; capture_channel < 4; capture_channel++) {
+		if (!timer_configs[timer_index].initialized_channels[capture_channel]) {
+			continue;
+		}
 
-	// Re-initialize output for CaptureDMA for next time
-	io_timer_unallocate_channel(output_channel);
-	io_timer_channel_init(output_channel, IOTimerChanMode_CaptureDMA, NULL, NULL);
+		uint8_t output_channel = output_channel_from_timer_channel(timer_index, capture_channel);
 
-	// Select the next capture channel
-	select_next_capture_channel(timer_index);
+		// Re-initialize output for CaptureDMA
+		io_timer_unallocate_channel(output_channel);
+		io_timer_channel_init(output_channel, IOTimerChanMode_CaptureDMA, NULL, NULL);
 
-	// Allocate DMA for currently selected capture_channel
-	capture_channel = timer_configs[timer_index].capture_channel_index;
-	timer_configs[timer_index].dma_handle = stm32_dmachannel(io_timers[timer_index].dshot.dma_map_ch[capture_channel]);
+		// Streams reservados una sola vez (reservar y liberar 4 por trama tarda: el ultimo canal llegaba tarde
+		// a la respuesta del ESC, que empieza ~30 us despues de la trama). En el DMA2: el DMA1 (8 streams) ya
+		// tiene la SPI2/SPI3 (4) y la rafaga de DShot; con 4 capturas mas no queda stream para la rafaga.
+		DMA_HANDLE h = timer_configs[timer_index].capture_dma_handle[capture_channel];
 
-	// If DMA handler is valid, start DMA
-	if (timer_configs[timer_index].dma_handle == NULL) {
-		PX4_WARN("failed to allocate dma for timer %u channel %u", timer_index, capture_channel);
-		return;
+		if (h == NULL) {
+			h = stm32_dmachannel(DMAMAP_MAP(DMA2, DMAMAP_REQUEST(io_timers[timer_index].dshot.dma_map_ch[capture_channel])));
+			timer_configs[timer_index].capture_dma_handle[capture_channel] = h;
+		}
+
+		if (h == NULL) {
+			PX4_WARN("failed to allocate dma for timer %u channel %u", timer_index, capture_channel);
+			continue;
+		}
+
+		// Set Capture mode for this channel
+		io_timer_set_dshot_capture_mode(timer_index, capture_channel, _dshot_frequency);
+		io_timer_capture_dma_req(timer_index, capture_channel, true);
+
+		// Choose which CC register for this DMA stream
+		uint32_t periph_addr = io_timers[timer_index].base + STM32_GTIM_CCR1_OFFSET + (4 * capture_channel);
+
+		px4_stm32_dmasetup(h,
+				   periph_addr,
+				   (uint32_t) dshot_capture_buffer[capture_channel],
+				   CHANNEL_CAPTURE_BUFF_SIZE,
+				   DSHOT_BIDIRECTIONAL_DMA_SCR);
+
+		// NOTE: we can't use DMA callback since GCR encoding creates a variable length pulse train. Instead
+		// we use an hrt callback to schedule the processing of the received and DMAd eRPM frames.
+		stm32_dmastart(h, NULL, NULL, false);
 	}
-
-	// Set Capture mode for this channel
-	io_timer_set_dshot_capture_mode(timer_index, capture_channel, _dshot_frequency);
-	io_timer_capture_dma_req(timer_index, capture_channel, true);
-
-	// Choose which CC register for this DMA stream
-	uint32_t periph_addr = io_timers[timer_index].base + STM32_GTIM_CCR1_OFFSET + (4 * capture_channel);
-
-	// Setup DMA for this channel
-	px4_stm32_dmasetup(timer_configs[timer_index].dma_handle,
-			   periph_addr,
-			   (uint32_t) dshot_capture_buffer[capture_channel],
-			   CHANNEL_CAPTURE_BUFF_SIZE,
-			   DSHOT_BIDIRECTIONAL_DMA_SCR);
-
-	// NOTE: we can't use DMA callback since GCR encoding creates a variable length pulse train. Instead
-	// we use an hrt callback to schedule the processing of the received and DMAd eRPM frames.
-	stm32_dmastart(timer_configs[timer_index].dma_handle, NULL, NULL, false);
 
 	// Enable CaptureDMA and on all configured channels
 	io_timer_set_enable(true, IOTimerChanMode_CaptureDMA, IO_TIMER_ALL_MODES_CHANNELS);
+	perf_end(capture_setup_perf);
 
 	// 30us to switch regardless of DShot frequency + eRPM frame time + 10us for good measure
 	hrt_abstime frame_us = (16 * 1000000) / _dshot_frequency; // 16 bits * us_per_s / bits_per_s
@@ -508,13 +561,15 @@ static void capture_complete_callback(void *arg)
 	// Unallocate the timer as CaptureDMA
 	io_timer_unallocate_timer(timer_index);
 
-	uint8_t capture_channel = timer_configs[timer_index].capture_channel_index;
+	// Disable capture DMA and free the streams (px4_mujoco: los 4 canales)
+	for (uint8_t capture_channel = 0; capture_channel < 4; capture_channel++) {
+		DMA_HANDLE h = timer_configs[timer_index].capture_dma_handle[capture_channel];
 
-	// Disable capture DMA
-	io_timer_capture_dma_req(timer_index, capture_channel, false);
-
-	// Stop DMA (should already be finished)
-	stm32_dmastop(timer_configs[timer_index].dma_handle);
+		if (h != NULL) {
+			io_timer_capture_dma_req(timer_index, capture_channel, false);
+			stm32_dmastop(h);
+		}
+	}
 
 	// Re-initialize all output channels on this timer
 	for (uint8_t output_channel = 0; output_channel < MAX_TIMER_IO_CHANNELS; output_channel++) {
@@ -536,7 +591,11 @@ static void capture_complete_callback(void *arg)
 			     (uintptr_t) dshot_capture_buffer + DSHOT_CAPTURE_BUFFER_SIZE(MAX_NUM_CHANNELS_PER_TIMER));
 
 	// Process eRPM frames from all channels on this timer
-	process_capture_results(timer_index, capture_channel);
+	for (uint8_t capture_channel = 0; capture_channel < 4; capture_channel++) {
+		if (timer_configs[timer_index].initialized_channels[capture_channel]) {
+			process_capture_results(timer_index, capture_channel);
+		}
+	}
 
 	// Enable all channels configured as DShotInverted
 	io_timer_set_enable(true, IOTimerChanMode_DshotInverted, IO_TIMER_ALL_MODES_CHANNELS);
@@ -659,7 +718,11 @@ int up_bdshot_channel_status(uint8_t channel)
 	uint8_t timer_channel_index = timer_io_channels[channel].timer_channel - 1;
 	bool channel_initialized = timer_configs[timer_index].initialized_channels[timer_channel_index];
 
-	// TODO: track that each channel is communicating using the decode stats
+	// px4_mujoco: online = respuesta valida reciente (antes: siempre 1 si el canal estaba inicializado)
+	if (channel_initialized && _bidirectional && timer_index == _bidi_timer_index) {
+		return (hrt_absolute_time() - _last_read_ok_time[timer_channel_index]) < BDSHOT_ONLINE_TIMEOUT_US;
+	}
+
 	if (channel_initialized) {
 		return 1;
 	}
@@ -667,12 +730,56 @@ int up_bdshot_channel_status(uint8_t channel)
 	return 0;
 }
 
+void up_bdshot_rescue_check(bool armed)
+{
+	if (!_bidirectional || armed || _rescue_request || _rescue_until != 0) {
+		if (armed) {
+			_rescue_check_time = 0;
+		}
+
+		return;
+	}
+
+	const hrt_abstime now = hrt_absolute_time();
+
+	if (_rescue_check_time == 0) {
+		_rescue_check_time = now; // margen tras iniciar o desarmar
+		return;
+	}
+
+	if (now - _rescue_check_time < BDSHOT_RESCUE_INTERVAL_US) {
+		return;
+	}
+
+	_rescue_check_time = now;
+
+	for (uint8_t i = 0; i < MAX_NUM_CHANNELS_PER_TIMER; i++) {
+		if (timer_configs[_bidi_timer_index].initialized_channels[i]
+		    && (now - _last_read_ok_time[i]) > BDSHOT_RESCUE_OFFLINE_US) {
+
+			if (++_rescue_streak > BDSHOT_RESCUE_LONG_AFTER) {
+				_rescue_streak = 0;
+				_rescue_hold_us = BDSHOT_RESCUE_LONG_HOLD_US;
+				_rescue_long_count++;
+
+			} else {
+				_rescue_hold_us = BDSHOT_RESCUE_HOLD_US;
+			}
+
+			_rescue_request = true;
+			return;
+		}
+	}
+
+	_rescue_streak = 0;
+}
+
 void up_bdshot_status(void)
 {
 	PX4_INFO("dshot driver stats:");
 
 	if (_bidirectional) {
-		PX4_INFO("Bidirectional DShot enabled");
+		PX4_INFO("Bidirectional DShot enabled (rescates de ESC: %lu, largos: %lu)", _rescue_count, _rescue_long_count);
 	}
 
 	uint8_t timer_index = _bidi_timer_index;
@@ -822,6 +929,7 @@ unsigned calculate_period(uint8_t timer_index, uint8_t channel_index)
 	}
 
 	++read_ok[channel_index];;
+	_last_read_ok_time[channel_index] = hrt_absolute_time();
 	return period;
 }
 

@@ -157,7 +157,19 @@ void SimulatorMavlink::send_esc_telemetry(mavlink_hil_actuator_controls_t hil_ac
 		esc_status.esc[i].esc_current = armed ? 1.0f + math::abs_t(hil_act_control.controls[i]) * 15.0f :
 						0.0f; // TODO: magic number
 		esc_status.esc[i].esc_rpm = hil_act_control.controls[i] * 6000;  // TODO: magic number
+
+		// px4_mujoco: si la planta manda RPM (ESC_STATUS), van esas
+		if (i < 4 && _sim_esc_time != 0 && hrt_elapsed_time(&_sim_esc_time) < 100_ms) {
+			esc_status.esc[i].esc_rpm = _sim_esc_rpm[i];
+			esc_status.esc[i].esc_current = _sim_esc_current[i];
+			esc_status.esc[i].esc_voltage = _sim_esc_voltage;
+		}
 		esc_status.esc[i].esc_temperature = 20.0 + math::abs_t(hil_act_control.controls[i]) * 40.0;
+	}
+
+	// px4_mujoco: con RPM de la planta se marca como DShot (como el FC real); battery_simulator toma de aca el voltaje
+	if (_sim_esc_time != 0 && hrt_elapsed_time(&_sim_esc_time) < 100_ms) {
+		esc_status.esc_connectiontype = esc_status_s::ESC_CONNECTION_TYPE_DSHOT;
 	}
 
 	esc_status.esc_count = max_esc_index + 1;
@@ -385,6 +397,21 @@ void SimulatorMavlink::handle_message(const mavlink_message_t *msg)
 
 	case MAVLINK_MSG_ID_HIL_STATE_QUATERNION:
 		handle_message_hil_state_quaternion(msg);
+		break;
+
+	case MAVLINK_MSG_ID_ESC_STATUS: {
+			mavlink_esc_status_t esc;
+			mavlink_msg_esc_status_decode(msg, &esc);
+
+			for (int i = 0; i < 4 && esc.index + i < 4; i++) {
+				_sim_esc_rpm[esc.index + i] = esc.rpm[i];
+				_sim_esc_current[esc.index + i] = esc.current[i];
+			}
+
+			_sim_esc_voltage = esc.voltage[0];
+
+			_sim_esc_time = hrt_absolute_time();
+		}
 		break;
 
 	case MAVLINK_MSG_ID_RAW_RPM:

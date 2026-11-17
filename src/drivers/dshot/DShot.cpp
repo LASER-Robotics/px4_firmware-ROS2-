@@ -496,6 +496,8 @@ void DShot::Run()
 	}
 
 	if (_bidirectional_dshot_enabled) {
+		up_bdshot_rescue_check(_mixing_output.armed().armed);
+
 		// Add bdshot data to esc status
 		const int need_to_publish = handle_new_bdshot_erpm();
 

@@ -888,9 +888,15 @@ int io_timer_channel_init(unsigned channel, io_timer_channel_mode_t mode,
 #if !defined(BOARD_HAS_NO_CAPTURE)
 
 	case IOTimerChanMode_Capture:
-	case IOTimerChanMode_CaptureDMA:
 		setbits = CCMR_C1_CAPTURE_INIT;
 		gpio = timer_io_channels[channel].gpio_in;
+		break;
+
+	case IOTimerChanMode_CaptureDMA:
+		setbits = CCMR_C1_CAPTURE_INIT;
+		// px4_mujoco: pull-up en la captura de DShot bidireccional (como Betaflight). Con la linea flotando
+		// entre tramas el ESC AM32 a veces no la ve en alto y no detecta el modo bidireccional.
+		gpio = (timer_io_channels[channel].gpio_in & ~GPIO_PUPD_MASK) | GPIO_PULLUP;
 		break;
 #endif
 

@@ -108,6 +108,26 @@ void BatterySimulator::Run()
 
 	vbatt *= _battery.cell_count();
 
+	// px4_mujoco: si la planta MuJoCo manda su bateria (ESC_STATUS -> esc_status marcado DShot), van su voltaje y corriente
+	esc_status_s esc;
+
+	if (_esc_status_sub.update(&esc) && esc.esc_connectiontype == esc_status_s::ESC_CONNECTION_TYPE_DSHOT
+	    && esc.esc[0].esc_voltage > 5.f) {
+		_planta_v = esc.esc[0].esc_voltage;
+		_planta_i = 0.f;
+
+		for (int k = 0; k < esc.esc_count && k < esc_status_s::CONNECTED_ESC_MAX; k++) {
+			_planta_i += esc.esc[k].esc_current;
+		}
+
+		_planta_t = now_us;
+	}
+
+	if (_planta_t != 0 && now_us - _planta_t < 500_ms) {
+		vbatt = _planta_v;
+		ibatt = _planta_i;
+	}
+
 	_battery.setConnected(true);
 	_battery.updateVoltage(vbatt);
 	_battery.updateCurrent(ibatt);

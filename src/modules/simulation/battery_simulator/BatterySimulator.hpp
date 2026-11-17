@@ -41,6 +41,7 @@
 #include <px4_platform_common/px4_work_queue/ScheduledWorkItem.hpp>
 #include <uORB/Publication.hpp>
 #include <uORB/Subscription.hpp>
+#include <uORB/topics/esc_status.h>
 #include <uORB/SubscriptionInterval.hpp>
 #include <uORB/topics/battery_status.h>
 #include <uORB/topics/parameter_update.h>
@@ -78,6 +79,10 @@ private:
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
 
 	uORB::Subscription _vehicle_command_sub{ORB_ID(vehicle_command)};
+	uORB::Subscription _esc_status_sub{ORB_ID(esc_status)};   // px4_mujoco: bateria de la planta
+	hrt_abstime _planta_t{0};
+	float _planta_v{0.f};
+	float _planta_i{0.f};
 	uORB::Publication<vehicle_command_ack_s> _command_ack_pub{ORB_ID(vehicle_command_ack)};
 
 	Battery _battery;

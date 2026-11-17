@@ -171,5 +171,11 @@ __EXPORT extern int up_bdshot_get_erpm(uint8_t channel, int *erpm);
  */
 __EXPORT extern int up_bdshot_channel_status(uint8_t channel);
 
+/**
+ * px4_mujoco: desarmado, si un canal bidireccional no responde, pone las lineas en bajo un momento para sacar
+ * al ESC (AM32) de su bootloader. Llamar en cada ciclo; armado no hace nada.
+ */
+__EXPORT extern void up_bdshot_rescue_check(bool armed);
+
 
 __END_DECLS

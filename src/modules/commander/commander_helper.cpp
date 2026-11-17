@@ -146,9 +146,9 @@ static orb_advert_t tune_control_pub = nullptr;
 int buzzer_init()
 {
 	tune_durations[tune_control_s::TUNE_ID_NOTIFY_POSITIVE] = 800000;
-	tune_durations[tune_control_s::TUNE_ID_NOTIFY_NEGATIVE] = 900000;
+	tune_durations[tune_control_s::TUNE_ID_NOTIFY_NEGATIVE] = 600000;  // 12/11: dos pitidos (antes 0.9 s)
 	tune_durations[tune_control_s::TUNE_ID_NOTIFY_NEUTRAL] = 500000;
-	tune_durations[tune_control_s::TUNE_ID_ARMING_WARNING] = 3000000;
+	tune_durations[tune_control_s::TUNE_ID_ARMING_WARNING] = 400000;   // 12/11: un pitido corto (antes 3 s)
 	tune_durations[tune_control_s::TUNE_ID_HOME_SET] = 800000;
 	tune_durations[tune_control_s::TUNE_ID_BATTERY_WARNING_FAST] = 800000;
 	tune_durations[tune_control_s::TUNE_ID_BATTERY_WARNING_SLOW] = 800000;

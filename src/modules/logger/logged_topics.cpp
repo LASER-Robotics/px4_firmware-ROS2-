@@ -278,7 +278,8 @@ void LoggedTopics::add_high_rate_topics()
 	add_topic("vehicle_attitude_setpoint");
 	add_topic("vehicle_rates_setpoint");
 
-	add_topic("esc_status", 5);
+	// px4_mujoco: esc_status a la tasa del driver (antes 5 ms = tope 200 Hz): RPM de los 4 motores en cada trama DShot
+	add_topic("esc_status");
 	add_topic("actuator_motors");
 	add_topic("actuator_outputs_debug");
 	add_topic("actuator_servos");
