@@ -1,0 +1,7 @@
+# Perfil de log del FC. SDLOG_PROFILE es una mascara de bits:
+#   1 set normal · 2 replay del EKF · 8 identificacion de sistemas · 16 tasa alta (rates, actuadores, RPM)
+#   256 gyro crudo FIFO · 512 accel crudo FIFO
+# 25 = 1+8+16: lo normal. Con el firmware _bidir4 las RPM (esc_status) van al log a 666 Hz: 200 KiB/s, sin dropouts.
+# 28/10 banco: 281 (+gyro crudo) y 795 (+todo crudo) piden ~290 KiB/s y la SD actual pierde ~20 bloques/s (hasta 0.4 s).
+# Para medir la vibracion (un solo vuelo): SD rapida (A2/U3) con 281, o sensor_gyro_fft (picos, liviano).
+SDLOG_PROFILE 25

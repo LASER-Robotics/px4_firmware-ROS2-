@@ -1,0 +1,30 @@
+# MODO VUELO REAL del FC MicoAir H743 (12/11/2026). Lo aplica scripts/fc_modo.sh real.
+# Son EXACTAMENTE los parametros que tocan los modos HIL (hil_real_livox.params, hil_real_livox_sticks.params), con el
+# valor que tiene el FC para volar el dron real (tomado del FC el 12/11/2026, respaldo
+# respaldo_micoair_20261112_1030_pre_hil_v10.params). Si un modo HIL cambia otro parametro, agregarlo aca tambien.
+# Los HIL_ACT_FUNC1..4 solo existen con SYS_HITL 1: al volver a 0 desaparecen solos tras el reboot.
+SYS_HITL 0
+# IMU montada rotada en el frame (yaw 180) y trim de nivel de la placa
+SENS_BOARD_ROT 8
+SENS_BOARD_X_OFF 0.2378475
+SENS_BOARD_Y_OFF -0.2525274
+# multi-EKF del FC real
+SENS_IMU_MODE 0
+# exige la telemetria de los ESC para armar
+COM_ARM_CHK_ESCS 1
+# radio real por el receptor (RC); los sticks por MAVLink solo en hil_sticks
+COM_RC_IN_MODE 0
+# 12/11: estos los cambia PX4 SOLO durante el HIL (no estan en los .params de HIL) y no vuelven solos:
+# con SYS_HITL 1 apaga el GPS (GPS_1_CONFIG 0) y registra la IMU simulada como tercera IMU (CAL_ACC2/GYRO2_ID).
+GPS_1_CONFIG 201
+CAL_ACC2_ID 0
+CAL_GYRO2_ID 0
+# 16/11/2026: el MTF-02P real (flujo + telemetro) entra por MAVLink en TELEM3 = instancia MAV_2. Los modos HIL la apagan
+# (MAV_2_CONFIG 0: el flujo lo simula la planta); aca vuelve. Los otros MAV_2_* solo existen con la instancia prendida
+# (como los HIL_ACT_FUNC*): fc_modo.sh los repone en la segunda pasada, tras el reboot. Valores del FC (respaldo fc_20261116_1051).
+MAV_2_CONFIG 103
+MAV_2_FLOW_CTRL 2
+MAV_2_FORWARD 0
+MAV_2_MODE 0
+MAV_2_RADIO_CTL 1
+MAV_2_RATE 0

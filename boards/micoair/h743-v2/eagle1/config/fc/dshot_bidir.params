@@ -1,0 +1,12 @@
+# DShot bidireccional (RPM de los ESC AM32 por el mismo cable de senal; solo Timer1 = salidas 1-4)
+# 27/10/2026: ENCENDIDO con el firmware _bidir. Causa de la falla del 26/10: PX4 tarda 3-5 s en arrancar, el ESC
+# AM32 sin senal se reinicia cada 2 s y, si se reinicia con DShot invertido llegando (linea casi siempre en alto),
+# su bootloader se queda esperando configuracion -> el motor no responde (Motor1/Motor4 = TIM1 CH3/CH4, siempre).
+# El firmware lo rescata solo: desarmado, canal sin respuesta > 1 s -> lineas en bajo 50 ms (el bootloader salta a
+# la aplicacion tras 20 ms en bajo) -> la aplicacion detecta el modo bidireccional. 3/3 arranques solo con bateria
+# OK (1 rescate cada uno), los 4 motores dan RPM. Ver: dshot status ("rescates de ESC: N").
+# esc_status (RPM) se loguea a 200 Hz con SDLOG_PROFILE 25. MOT_POLE_COUNT 14 (valor por defecto de PX4, NO verificado contra el motor: contar los imanes de la campana).
+DSHOT_BIDIR_EN 1
+
+# 27/10: no deja armar si algun ESC no responde por DShot bidireccional (red de seguridad del rescate)
+COM_ARM_CHK_ESCS 1

@@ -1,0 +1,10 @@
+# 12/11/2026: el EKF usa SOLO el MTF-02P (flujo + telemetro, UART5/TELEM3). Antes alternaba con el Lidar-Lite I2C 0x62
+# segun cual llegaba primero (V1 MTF, V2 Lidar-Lite; 4-5 cm de diferencia). Posicion del MTF-02P respecto del FC (FRD,
+# medida a mano): 6 cm adelante, 0 lateral, 2.5 cm abajo.
+SENS_EN_LL40LS 0
+EKF2_OF_POS_X 0.06
+EKF2_OF_POS_Y 0
+EKF2_OF_POS_Z 0.025
+EKF2_RNG_POS_X 0.06
+EKF2_RNG_POS_Y 0
+EKF2_RNG_POS_Z 0.025

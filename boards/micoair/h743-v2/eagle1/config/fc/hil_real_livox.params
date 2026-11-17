@@ -1,0 +1,24 @@
+# HIL con el gemelo DRON=real_livox (28/10/2026): el FC conserva SUS ganancias y su geometria (el gemelo ES el dron
+# real); solo cambia lo que el HIL exige. TEMPORAL: volver con
+#   fc_params.py apply --reboot config/fc/respaldo_micoair_20261028_117_bidir4_pre_hil.params
+SYS_HITL 1
+HIL_ACT_FUNC1 101
+HIL_ACT_FUNC2 102
+HIL_ACT_FUNC3 103
+HIL_ACT_FUNC4 104
+# sensores HIL = internos: sin rotacion de placa ni trim de nivel (MuJoCo ya manda en el marco del cuerpo)
+SENS_BOARD_ROT 0
+SENS_BOARD_X_OFF 0
+SENS_BOARD_Y_OFF 0
+# una sola IMU (MuJoCo): un solo EKF
+SENS_IMU_MODE 1
+# sin ESC reales en HIL: el chequeo de ESC no dejaria armar
+COM_ARM_CHK_ESCS 0
+# radio real por el receptor (RC): explicito para no heredar el 1 de hil_sticks (12/11)
+COM_RC_IN_MODE 0
+
+# 16/11/2026: en HIL el flujo optico y el telemetro los SIMULA la planta (HIL_OPTICAL_FLOW + DISTANCE_SENSOR por el USB).
+# El MTF-02P REAL entra por MAVLink en TELEM3 (instancia MAV_2; verificado en log_142: sensor_optical_flow con bus MAVLINK):
+# en el banco mira el piso quieto y le diria al EKF "no me muevo" mientras la simulacion se mueve. Se APAGA esa instancia.
+# Vuelve con fc_modo.sh real (modo_vuelo_real.params la restituye en 103).
+MAV_2_CONFIG 0

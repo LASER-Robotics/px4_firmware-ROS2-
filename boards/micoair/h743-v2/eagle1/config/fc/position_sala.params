@@ -1,0 +1,3 @@
+# 12/11/2026: POSITION (flujo MTF-02P) en la sala LUS (6 x 6 m). En POSITION el stick derecho pide VELOCIDAD en proporcion
+# a la deflexion: stick a fondo = MPC_VEL_MANUAL. Era 10 m/s (default; un toque de 20 % = 2 m/s); en la sala, 1 m/s.
+MPC_VEL_MANUAL 1.0

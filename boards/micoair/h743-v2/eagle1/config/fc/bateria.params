@@ -1,0 +1,13 @@
+# Bateria del dron REAL (22/10/2026: aterriza siempre a ~3.5 V/celda).
+# PX4 estima el % lineal entre V_EMPTY y V_CHARGED (compensando la caida por corriente). Con V_EMPTY 3.4:
+#   baja (15%) ~3.55 V/celda = 21.3 V (6S) · critica (7%) ~3.47 V = 20.8 V · emergencia (5%) ~3.45 V = 20.7 V.
+# COM_LOW_BAT_ACT sigue en 0 (solo aviso + beeper, no aterriza solo).
+BAT1_V_EMPTY 3.38   # 27/10: LOW (pitido lento) a ~3.50 V/celda = 21.0 V (igual que la radio), CRITICAL ~3.43
+# 27/10/2026: CBRK_SUPPLY_CHK en 894281 (como venia). Con 0, PX4 bloqueaba el armado ("System power unavailable":
+# la MicoAir H743 v2 no publica system_power). El parche de batteryCheck.cpp (firmware _batcbrk) hace que el CBRK
+# ya NO apague la alarma de bateria: LOW/CRITICAL/EMERGENCY y el bloqueo de armado siguen activos (probado en banco).
+CBRK_SUPPLY_CHK 894281
+# 28/10: sensor de corriente calibrado con el cargador. log_97: FC conto 893 mAh, el cargador repuso 1350 hasta 4.10 V/celda
+#   (salio en 4.12): ~1.52x de menos -> 40 * 1.52. Es del sensor, vale para todas las baterias. BAT1_CAPACITY queda -1
+#   (3 baterias distintas: 1500, 1500, 1400 y salud distinta; el aviso va por voltaje).
+BAT1_A_PER_V 60.8

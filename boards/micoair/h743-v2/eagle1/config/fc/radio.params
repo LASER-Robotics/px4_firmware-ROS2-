@@ -1,0 +1,26 @@
+# Radio (ELRS) — el mismo en el FC real, en HIL y (con el joystick) en el SIL. Decisiones de operacion:
+# volar en ALTITUDE, entregar a OFFBOARD (ch5) solo desde ALTITUDE.
+#   ch1-4 AETR · ch5 OFFBOARD · ch7 modo (POSITION / ALTITUDE; POSITION reemplazo a STABILIZED el 12/11/2026, flujo MTF-02P) · ch8 ARM (invertido) · ch10 KILL
+#   (identificados con rc_monitor.py el 20/10: ch6 no lo mueve ningun switch; ch14 copia al ch5)
+COM_RC_IN_MODE 0
+RC_MAP_ROLL 1
+RC_MAP_PITCH 2
+RC_MAP_THROTTLE 3
+RC_MAP_YAW 4
+RC_MAP_OFFB_SW 5
+RC_MAP_KILL_SW 10
+RC_MAP_FLTMODE 7
+COM_FLTMODE1 2
+COM_FLTMODE6 1
+RC_MAP_ARM_SW 8
+RC8_REV -1
+# OFFBOARD perdido (el stack murio) con radio -> ALTITUDE: el piloto lo tiene en la mano
+COM_OBL_RC_ACT 1
+# radio perdida -> aterrizar
+NAV_RCL_ACT 3
+# Copia de los switches a AUX1-4 de manual_control_setpoint (lo unico de la radio que PX4 exporta por DDS):
+# el tablero muestra la POSICION de cada switch. AUX1 = ch8 ARM, AUX2 = ch7 modo, AUX3 = ch5 OFFBOARD, AUX4 = ch10 KILL
+RC_MAP_AUX1 8
+RC_MAP_AUX2 7
+RC_MAP_AUX3 5
+RC_MAP_AUX4 10
