@@ -5,6 +5,10 @@
 #####
 publications:
 
+  - topic: /fmu/out/esc_status
+    type: px4_msgs::msg::EscStatus
+    rate_limit: 250.
+
   - topic: /fmu/out/register_ext_component_reply
     type: px4_msgs::msg::RegisterExtComponentReply
 
@@ -46,6 +50,14 @@ publications:
   - topic: /fmu/out/sensor_combined
     type: px4_msgs::msg::SensorCombined
 
+  - topic: /fmu/out/sensor_gyro
+    type: px4_msgs::msg::SensorGyro
+    rate_limit: 250.
+
+  - topic: /fmu/out/sensor_accel
+    type: px4_msgs::msg::SensorAccel
+    rate_limit: 250.
+
   - topic: /fmu/out/timesync_status
     type: px4_msgs::msg::TimesyncStatus
     rate_limit: 10.
@@ -84,6 +96,7 @@ publications:
 
   - topic: /fmu/out/vehicle_odometry
     type: px4_msgs::msg::VehicleOdometry
+    rate_limit: 100.
 
   # --- mujuco_px4_ws (como el parche de 1.15): telemetro + verdad de terreno de la planta MuJoCo ---
   - topic: /fmu/out/distance_sensor
